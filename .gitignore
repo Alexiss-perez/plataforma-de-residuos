@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Env
+.env
+*.db
+test_*.db
+revinculo.db
+
+# Uploads
+uploads/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Claude skills (external repo, not part of this project)
+claude-skills/
+
+# OpenCode skills cache
+.opencode/
