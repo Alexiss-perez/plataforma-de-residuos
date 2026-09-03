@@ -1,0 +1,18 @@
+{
+"$schema": "https://opencode.ai/config.json",
+"provider": {
+"kostra": {
+"npm": "@ai-sdk/openai-compatible",
+"name": "Kostra",
+"options": {
+"baseURL": "https://ai.kostra.cloud/v1",
+"apiKey": "sk-tdkas4mrBoH6Hs3xOsohhA"
+},
+"models": {
+"glm-5.2": {
+"name": "glm-5.2"
+}
+}
+}
+}
+}

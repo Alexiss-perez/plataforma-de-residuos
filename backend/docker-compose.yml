@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: revinculo
+      POSTGRES_PASSWORD: revinculo
+      POSTGRES_DB: revinculo
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U revinculo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    environment:
+      APP_NAME: ReVinculo
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+psycopg://revinculo:revinculo@postgres:5432/revinculo
+      JWT_SECRET: change-me-in-production
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      AI_BASE_URL: https://ai.kostra.cloud/v1
+      AI_API_KEY: ""
+      AI_MODEL: glm-5.2
+      STORAGE_PROVIDER: local
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+      - uploads:/app/uploads
+
+volumes:
+  pgdata:
+  uploads:
