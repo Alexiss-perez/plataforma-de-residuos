@@ -16,7 +16,7 @@ export default function Logo({ size = "md", className = "" }) {
       </svg>
       <span className={`${s.text} font-extrabold tracking-tight`}>
         <span className="text-eco-700">Eco</span>
-        <span className="text-earth-600">Match</span>
+        <span className="text-earth-600">Innova</span>
       </span>
     </div>
   );
