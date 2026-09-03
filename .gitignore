@@ -1,33 +1,36 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-dist/
-build/
-
-# Virtual environments
+*.pyc
+*.pyo
 .venv/
 venv/
 env/
 
-# Environment variables
+# Env
 .env
-.env.local
+*.db
+test_*.db
+revinculo.db
 
-# Logs (pueden contener datos de sesiones)
-ia/logs/
+# Uploads
+uploads/
 
-# OS
-.DS_Store
-Thumbs.db
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 
-# Node (si el frontend se agrega después)
-node_modules/
+# OS
+Thumbs.db
+.DS_Store
+
+# Claude skills (external repo, not part of this project)
+claude-skills/
+
+# OpenCode skills cache
+.opencode/
