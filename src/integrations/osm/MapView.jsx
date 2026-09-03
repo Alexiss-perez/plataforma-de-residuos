@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
@@ -28,11 +28,21 @@ const blueIcon = L.icon({
   className: "marker-blue",
 });
 
-export default function MapView({ direccionOrigen, receptores = [], onReceptorClick }) {
+function RecentrarMapa({ centro }) {
+  const map = useMap();
+  useEffect(() => {
+    if (centro) map.setView([centro.lat, centro.lon], 14);
+  }, [centro, map]);
+  return null;
+}
+
+export default function MapView({ direccionOrigen, receptores = [], onReceptorClick, onUbicacionChange }) {
   const [origen, setOrigen] = useState(null);
   const [rutaCoords, setRutaCoords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [direccionManual, setDireccionManual] = useState(direccionOrigen || "");
 
   useEffect(() => {
     if (!direccionOrigen) {
@@ -47,6 +57,48 @@ export default function MapView({ direccionOrigen, receptores = [], onReceptorCl
       .catch(() => setError("No se pudo geocodificar la direccion"))
       .finally(() => setLoading(false));
   }, [direccionOrigen]);
+
+  const usarMiUbicacion = useCallback(() => {
+    if (!navigator.geolocation) {
+      setError("Tu navegador no soporta geolocalizacion");
+      return;
+    }
+    setGpsLoading(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        setOrigen(coords);
+        try {
+          const r = await mapsApi.reverseGeocodificar(coords.lat, coords.lon);
+          setDireccionManual(r.display_name);
+          if (onUbicacionChange) onUbicacionChange(r.display_name, coords);
+        } catch {
+          if (onUbicacionChange) onUbicacionChange("", coords);
+        }
+        setGpsLoading(false);
+      },
+      () => {
+        setError("No se pudo obtener tu ubicacion. Permiso denegado o GPS no disponible.");
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [onUbicacionChange]);
+
+  const buscarDireccionManual = useCallback(async () => {
+    if (!direccionManual.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await mapsApi.geocodificar(direccionManual);
+      setOrigen({ lat: r.lat, lon: r.lon });
+      if (onUbicacionChange) onUbicacionChange(r.display_name, { lat: r.lat, lon: r.lon });
+    } catch {
+      setError("Direccion no encontrada");
+    }
+    setLoading(false);
+  }, [direccionManual, onUbicacionChange]);
 
   const trazarRuta = useCallback(
     async (receptor) => {
@@ -75,50 +127,77 @@ export default function MapView({ direccionOrigen, receptores = [], onReceptorCl
       </div>
     );
 
-  if (error)
-    return (
-      <div className="flex h-[500px] items-center justify-center text-red-500">
-        {error}
-      </div>
-    );
-
   return (
-    <MapContainer
-      center={origen ? [origen.lat, origen.lon] : [-33.45, -70.66]}
-      zoom={12}
-      style={{ height: "500px", width: "100%", borderRadius: "0.5rem" }}
-    >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap"
-      />
-
-      {origen && (
-        <Marker position={[origen.lat, origen.lon]} icon={greenIcon}>
-          <Popup>
-            <strong>Origen (generador)</strong>
-          </Popup>
-        </Marker>
-      )}
-
-      {receptores.map((r, i) => (
-        <Marker
-          key={i}
-          position={[r.lat, r.lon]}
-          icon={blueIcon}
-          eventHandlers={{ click: () => trazarRuta(r) }}
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          value={direccionManual}
+          onChange={(e) => setDireccionManual(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && buscarDireccionManual()}
+          placeholder="Escribe una direccion..."
+          className="min-w-[200px] flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-eco-500 focus:outline-none"
+        />
+        <button
+          onClick={buscarDireccionManual}
+          className="rounded-lg bg-eco-600 px-4 py-2 text-sm font-medium text-white hover:bg-eco-700"
         >
-          <Popup>
-            <strong>{r.nombre}</strong>
-            {r.distancia_km && <br />}
-            {r.distancia_km && `${r.distancia_km} km — ${r.duracion_min} min`}
-          </Popup>
-        </Marker>
-      ))}
+          Buscar
+        </button>
+        <button
+          onClick={usarMiUbicacion}
+          disabled={gpsLoading}
+          className="rounded-lg border border-eco-300 bg-eco-50 px-4 py-2 text-sm font-medium text-eco-700 hover:bg-eco-100 disabled:opacity-50"
+        >
+          {gpsLoading ? "Obteniendo..." : "Usar mi ubicacion"}
+        </button>
+      </div>
 
-      {rutaCoords.length > 0 && (
-        <Polyline positions={rutaCoords} color="#16a34a" weight={3} opacity={0.7} />
+      {error && (
+        <div className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          {error}
+        </div>
       )}
-    </MapContainer>
+
+      <MapContainer
+        center={origen ? [origen.lat, origen.lon] : [-33.45, -70.66]}
+        zoom={12}
+        style={{ height: "500px", width: "100%", borderRadius: "0.5rem" }}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; OpenStreetMap"
+        />
+
+        <RecentrarMapa centro={origen} />
+
+        {origen && (
+          <Marker position={[origen.lat, origen.lon]} icon={greenIcon}>
+            <Popup>
+              <strong>Origen (generador)</strong>
+            </Popup>
+          </Marker>
+        )}
+
+        {receptores.map((r, i) => (
+          <Marker
+            key={i}
+            position={[r.lat, r.lon]}
+            icon={blueIcon}
+            eventHandlers={{ click: () => trazarRuta(r) }}
+          >
+            <Popup>
+              <strong>{r.nombre}</strong>
+              {r.distancia_km && <br />}
+              {r.distancia_km && `${r.distancia_km} km — ${r.duracion_min} min`}
+            </Popup>
+          </Marker>
+        ))}
+
+        {rutaCoords.length > 0 && (
+          <Polyline positions={rutaCoords} color="#16a34a" weight={3} opacity={0.7} />
+        )}
+      </MapContainer>
+    </div>
   );
 }
