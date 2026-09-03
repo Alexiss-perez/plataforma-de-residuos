@@ -1,0 +1,125 @@
+name: CI - Build, Test & Lint
+
+on:
+  pull_request:
+    branches: [ "main", "master" ]
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  # ============================================================
+  # Job 1: Validar que no hay secretos commiteados
+  # ============================================================
+  secret-scan:
+    name: Escaneo de Secretos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detectar secretos con TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: .
+          extra_args: --only-verified
+
+  # ============================================================
+  # Job 2: Lint del Frontend
+  # ============================================================
+  lint-frontend:
+    name: Lint Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: front-web/package-lock.json
+      - name: Instalar dependencias
+        run: |
+          if [ -f front-web/package.json ]; then
+            cd front-web && npm ci
+          else
+            echo "front-web/ aún no existe - saltando"
+          fi
+      - name: Lint
+        run: |
+          if [ -f front-web/package.json ]; then
+            cd front-web && npm run lint --if-present
+          fi
+
+  # ============================================================
+  # Job 3: Build del Frontend
+  # ============================================================
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: lint-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: front-web/package-lock.json
+      - name: Build
+        run: |
+          if [ -f front-web/package.json ]; then
+            cd front-web && npm ci && npm run build --if-present
+          else
+            echo "front-web/ aún no existe - saltando"
+          fi
+
+  # ============================================================
+  # Job 4: Build del Backend (Docker)
+  # ============================================================
+  build-backend:
+    name: Build Backend (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Backend API
+        run: |
+          if [ -f back-api/Dockerfile ]; then
+            docker build -t back-api:ci ./back-api
+          else
+            echo "back-api/Dockerfile aún no existe - saltando"
+          fi
+
+  # ============================================================
+  # Job 5: Build del AI Orchestrator (Docker)
+  # ============================================================
+  build-ai:
+    name: Build AI Orchestrator (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build AI Orchestrator
+        run: |
+          if [ -f ai-orchestrator/Dockerfile ]; then
+            docker build -t ai-orchestrator:ci ./ai-orchestrator
+          else
+            echo "ai-orchestrator/Dockerfile aún no existe - saltando"
+          fi
+
+  # ============================================================
+  # Job 6: Tests del agente (cuando existan)
+  # ============================================================
+  test-agent:
+    name: Tests del Agente
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-ai]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ejecutar tests si existen
+        run: |
+          if [ -d tests ] && [ -f ai-orchestrator/requirements.txt ]; then
+            echo "Tests automatizados se ejecutarán cuando el agente esté implementado"
+          else
+            echo "Tests del agente pendientes de implementación"
+          fi
