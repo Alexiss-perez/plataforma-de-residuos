@@ -22,6 +22,7 @@ from app.api.routes import (
     projects,
     users,
 )
+from app.integrations.osm.routes import router as osm_router
 
 
 def create_app() -> FastAPI:
@@ -83,6 +84,7 @@ def create_app() -> FastAPI:
     app.include_router(impact.router, prefix=api_prefix)
     app.include_router(notifications.router, prefix=api_prefix)
     app.include_router(ai.router, prefix=api_prefix)
+    app.include_router(osm_router, prefix=api_prefix)
 
     @app.get("/health")
     def root_health():
