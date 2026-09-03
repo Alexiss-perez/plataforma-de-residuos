@@ -1,0 +1,13 @@
+{
+  "nombre": "test_11_e2e_agendar_retiro",
+  "descripcion": "Flujo END-TO-END completo: publicar residuo -> buscar receptores -> agendar retiro -> confirmar. Valida el 30% de la rubrica.",
+  "resultado_esperado": "El agente completa todo el flujo: registra oferta, busca receptores, agenda retiro y entrega confirmacion con datos.",
+  "pasos": [
+    {
+      "user": "Soy una constructora, tenemos 20 m3 de escombros en Av. Principal 123 para retirar"
+    },
+    {
+      "user": "Quiero coordinar con la opcion 1, Recicladora Norte, para el dia 2025-12-15 a las 10:00"
+    }
+  ]
+}
