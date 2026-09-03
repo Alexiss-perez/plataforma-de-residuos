@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useToast } from "../components/ui/Toast";
 import { validateEmail, validateRequired } from "../lib/validation";
 import { Mail, Lock } from "../components/icons";
+import api from "../lib/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -28,20 +29,13 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 800));
-      const isAdmin = email.includes("admin");
-      login(
-        {
-          email,
-          companyName: isAdmin ? "Administrador" : "Empresa Demo",
-          role: isAdmin ? "admin" : "donador",
-        },
-        "mock-token",
-      );
+      const { data } = await api.post("/auth/login", { email, password });
+      login(data.user, data.access_token);
       toast("Sesión iniciada", "success");
-      navigate(isAdmin ? "/admin" : "/dashboard");
-    } catch {
-      toast("Credenciales inválidas", "error");
+      navigate(data.user.role === "ADMIN" ? "/admin" : "/dashboard");
+    } catch (err) {
+      const msg = err.response?.data?.error?.message || "Credenciales inválidas";
+      toast(msg, "error");
     } finally {
       setLoading(false);
     }

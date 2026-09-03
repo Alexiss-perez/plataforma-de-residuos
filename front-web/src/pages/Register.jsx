@@ -26,6 +26,14 @@ import {
   Shield,
 } from "../components/icons";
 import { USER_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS } from "../lib/constants";
+import api from "../lib/api";
+
+const ROLE_TO_BACKEND = {
+  donador: "NATURAL",
+  ong: "ORGANIZATION",
+  transportista: "COLLECTOR",
+  admin: "ADMIN",
+};
 
 const steps = ["Cuenta", "Perfil", "Confirmar"];
 
@@ -88,15 +96,19 @@ export default function Register() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 1000));
-      login(
-        { email: form.email, companyName: form.fullName, role: form.role },
-        "mock-token",
-      );
+      const { data } = await api.post("/auth/register", {
+        name: form.fullName,
+        email: form.email,
+        password: form.password,
+        role: ROLE_TO_BACKEND[form.role] || "NATURAL",
+        commune: form.address,
+      });
+      login(data.user, data.access_token);
       toast("Cuenta creada exitosamente", "success");
       navigate(form.role === "admin" ? "/admin" : "/dashboard");
-    } catch {
-      toast("Error al crear cuenta", "error");
+    } catch (err) {
+      const msg = err.response?.data?.error?.message || "Error al crear cuenta";
+      toast(msg, "error");
     } finally {
       setLoading(false);
     }

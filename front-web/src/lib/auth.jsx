@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import api from "../lib/api";
 
 const AuthContext = createContext(null);
 
@@ -7,11 +8,27 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const token = localStorage.getItem("ecomatch_token");
     const stored = localStorage.getItem("ecomatch_user");
     if (stored) {
       setUser(JSON.parse(stored));
     }
-    setLoading(false);
+    // Si hay token, validar contra el backend
+    if (token) {
+      api.get("/auth/me")
+        .then(({ data }) => {
+          setUser(data);
+          localStorage.setItem("ecomatch_user", JSON.stringify(data));
+        })
+        .catch(() => {
+          localStorage.removeItem("ecomatch_token");
+          localStorage.removeItem("ecomatch_user");
+          setUser(null);
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const login = (userData, token) => {
