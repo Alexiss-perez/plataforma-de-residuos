@@ -31,23 +31,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Node (solo si existe front-web)
+        run: |
+          if [ -f front-web/package.json ]; then
+            echo "front-web detectado - configurando Node"
+          else
+            echo "front-web/ aún no existe - saltando lint"
+            exit 0
+          fi
       - uses: actions/setup-node@v4
+        if: ${{ hashFiles('front-web/package.json') != '' }}
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: front-web/package-lock.json
       - name: Instalar dependencias
-        run: |
-          if [ -f front-web/package.json ]; then
-            cd front-web && npm ci
-          else
-            echo "front-web/ aún no existe - saltando"
-          fi
+        if: ${{ hashFiles('front-web/package.json') != '' }}
+        run: cd front-web && npm ci
       - name: Lint
-        run: |
-          if [ -f front-web/package.json ]; then
-            cd front-web && npm run lint --if-present
-          fi
+        if: ${{ hashFiles('front-web/package.json') != '' }}
+        run: cd front-web && npm run lint --if-present
 
   # ============================================================
   # Job 3: Build del Frontend
@@ -59,6 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
+        if: ${{ hashFiles('front-web/package.json') != '' }}
         with:
           node-version: 22
           cache: npm
