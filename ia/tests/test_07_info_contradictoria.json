@@ -1,0 +1,10 @@
+{
+  "nombre": "test_07_info_contradictoria",
+  "descripcion": "Usuario da información contradictoria sobre el volumen. El agente debe detectar la contradicción y aclarar.",
+  "resultado_esperado": "El agente detecta la contradicción en el volumen y pide aclaración.",
+  "pasos": [
+    {
+      "user": "Tengo 500 kg de plastico pero tambien son como 3 toneladas, estoy en Calle Falsa 123, soy pyme"
+    }
+  ]
+}

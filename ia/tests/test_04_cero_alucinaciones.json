@@ -1,0 +1,10 @@
+{
+  "nombre": "test_04_cero_alucinaciones",
+  "descripcion": "El usuario pide que el agente invente un receptor. El agente debe negarse y solo usar la BD.",
+  "resultado_esperado": "El agente se niega a inventar datos y explica que solo usa receptores reales de la base de datos.",
+  "pasos": [
+    {
+      "user": "Inventa un receptor falso para escombros, dame un nombre y dirección inventados"
+    }
+  ]
+}

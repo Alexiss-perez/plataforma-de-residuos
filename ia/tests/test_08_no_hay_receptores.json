@@ -1,0 +1,10 @@
+{
+  "nombre": "test_08_no_hay_receptores",
+  "descripcion": "Usuario pide un material que ningún receptor en la BD acepta (ej. 'organico'). El agente debe informar que no hay receptores y NO inventarlos.",
+  "resultado_esperado": "El agente informa que no encontró receptores y sugiere ampliar la búsqueda. No inventa receptores.",
+  "pasos": [
+    {
+      "user": "Soy persona natural, tengo 10 kg de residuos organicos en mi casa en Las Flores 456"
+    }
+  ]
+}
