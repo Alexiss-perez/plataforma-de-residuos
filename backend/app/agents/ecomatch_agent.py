@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Generator
 
 from sqlalchemy.orm import Session
 
@@ -9,10 +9,12 @@ from app.agents.llm_client import LLMClient, get_llm_client
 from app.agents.prompts import (
     AMBIGUITY_SYSTEM,
     ANALYZE_MATERIAL_SYSTEM,
+    CHAT_SYSTEM_PROMPT,
     CONTINGENCY_SYSTEM,
     EXPLAIN_MATCH_SYSTEM,
     INTERPRET_NEED_SYSTEM,
 )
+from app.agents.guardrail import validar_respuesta
 from app.agents.tools import AgentTools
 from app.schemas.schemas import (
     AIMatchExplanation,
@@ -23,17 +25,24 @@ from app.utils.hazardous import determine_risk_level
 
 
 class EcoMatchAgent:
-    """AI agent for ReVínculo.
+    """Agente IA unificado para EcoMatch / ReVínculo.
 
-    Uses an LLM for natural-language understanding but ALL side effects
-    go through AgentTools / services which validate against the DB.
-    The agent never writes to the DB directly.
+    Dos modos de operación:
+    1. Programático: analyze_material, interpret_need, explain_match, etc.
+       (para endpoints REST del backend)
+    2. Conversacional: chat, chat_stream
+       (para WebSocket del frontend — streaming token a token)
+
+    En ambos modos, el LLM nunca escribe directamente en la DB.
+    Toda acción pasa por AgentTools → services → validaciones.
     """
 
     def __init__(self, db: Session, client: LLMClient | None = None) -> None:
         self.db = db
         self.client = client or get_llm_client()
         self.tools = AgentTools(db)
+
+    # ── Modo programático (REST /api/v1/ai/*) ──────────────────────────────
 
     def analyze_material(self, text: str) -> AIMaterialAnalysis:
         raw = self.client.chat(ANALYZE_MATERIAL_SYSTEM, f"Analiza: {text}")
@@ -78,13 +87,50 @@ class EcoMatchAgent:
         recommendation = json.loads(raw)
         return {"action": "recommend_replacement", "recommendation": recommendation, "candidates": candidates}
 
+    # ── Modo conversacional (WebSocket /ws) ────────────────────────────────
+
     def chat(self, message: str, context: dict | None = None) -> dict[str, Any]:
+        """Chat conversacional usando el system prompt avanzado."""
         ctx_str = json.dumps(context or {})
         raw = self.client.chat(
-            "You are EcoMatchAgent. Answer concisely.",
+            CHAT_SYSTEM_PROMPT,
             f"Context: {ctx_str}\nUser: {message}",
+            response_format_json=False,
         )
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return {"response": raw}
+
+        # Guardrail: validar antes de devolver
+        validacion = validar_respuesta(raw)
+        guardrail_blocked = not validacion["ok"]
+        if guardrail_blocked:
+            raw = validacion["mensaje_alternativo"]
+
+        return {"response": raw, "guardrail_blocked": guardrail_blocked}
+
+    def chat_stream(self, message: str, context: dict | None = None) -> Generator[dict, None, None]:
+        """
+        Chat conversacional con streaming token a token.
+        Genera (yield) eventos:
+            {"type": "token", "content": "..."}
+            {"type": "done", "content": "..."}
+            {"type": "guardrail_blocked", "razon": "..."}
+        """
+        ctx_str = json.dumps(context or {})
+        raw = self.client.chat(
+            CHAT_SYSTEM_PROMPT,
+            f"Context: {ctx_str}\nUser: {message}",
+            response_format_json=False,
+        )
+
+        # Simular streaming dividiendo la respuesta en chunks
+        chunk_size = 5
+        for i in range(0, len(raw), chunk_size):
+            chunk = raw[i:i + chunk_size]
+            yield {"type": "token", "content": chunk}
+
+        # Guardrail
+        validacion = validar_respuesta(raw)
+        if not validacion["ok"]:
+            yield {"type": "guardrail_blocked", "razon": validacion["razon"]}
+            yield {"type": "done", "content": validacion["mensaje_alternativo"]}
+        else:
+            yield {"type": "done", "content": raw}
