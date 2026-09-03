@@ -1,0 +1,60 @@
+{
+  "family": "ecmatch-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::353560240139:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "front-web",
+      "image": "353560240139.dkr.ecr.us-east-1.amazonaws.com/front-web:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 80, "hostPort": 80, "protocol": "tcp" }],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost/ || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3
+      }
+    },
+    {
+      "name": "back-api",
+      "image": "353560240139.dkr.ecr.us-east-1.amazonaws.com/back-api:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8080, "hostPort": 8080, "protocol": "tcp" }],
+      "environment": [
+        { "name": "SPRING_DATASOURCE_URL", "value": "jdbc:mysql://db-ecmatch-prod.us-east-1.rds.amazonaws.com:3306/ecmatch_db?useSSL=false&allowPublicKeyRetrieval=true" },
+        { "name": "SPRING_DATASOURCE_USERNAME", "value": "root" }
+      ],
+      "secrets": [
+        { "name": "SPRING_DATASOURCE_PASSWORD", "valueFrom": "arn:aws:secretsmanager:us-east-1:353560240139:secret:ecmatch/db-password" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3
+      }
+    },
+    {
+      "name": "ai-orchestrator",
+      "image": "353560240139.dkr.ecr.us-east-1.amazonaws.com/ai-orchestrator:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8000, "hostPort": 8000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "BACKEND_API_URL", "value": "http://back-api:8080" },
+        { "name": "GLM_MODEL", "value": "glm-5.2" }
+      ],
+      "secrets": [
+        { "name": "GLM_API_KEY", "valueFrom": "arn:aws:secretsmanager:us-east-1:353560240139:secret:ecmatch/glm-api-key" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3
+      }
+    }
+  ]
+}
