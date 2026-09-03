@@ -1,0 +1,10 @@
+{
+  "nombre": "test_06_prompt_confuso_lenguaje_informal",
+  "descripcion": "Usuario escribe de forma muy informal con errores. El agente debe entender la intención y repreguntar lo que falte.",
+  "resultado_esperado": "El agente interpreta 'cartones' como cartón y repregunta por volumen y ubicación.",
+  "pasos": [
+    {
+      "user": "oe tengo hartos cartones de una bodega ke cerramos, pa donde los llevo?"
+    }
+  ]
+}

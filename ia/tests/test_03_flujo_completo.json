@@ -1,0 +1,10 @@
+{
+  "nombre": "test_03_flujo_completo",
+  "descripcion": "Flujo feliz: usuario da todos los datos, el agente busca receptores y presenta opciones.",
+  "resultado_esperado": "El agente invoca buscar_receptores y presenta una lista de receptores reales de la BD.",
+  "pasos": [
+    {
+      "user": "Soy una constructora y tenemos 15 m3 de escombros en Av. Principal 123 para retirar"
+    }
+  ]
+}

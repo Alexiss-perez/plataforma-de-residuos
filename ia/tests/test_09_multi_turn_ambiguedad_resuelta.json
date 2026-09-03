@@ -1,0 +1,13 @@
+{
+  "nombre": "test_09_multi_turn_ambiguedad_resuelta",
+  "descripcion": "Usuario da info parcial, el agente repregunta, el usuario completa, y el agente procede a buscar. Flujo multi-turn completo.",
+  "resultado_esperado": "Tras dos turnos, el agente tiene todos los datos e invoca buscar_receptores exitosamente.",
+  "pasos": [
+    {
+      "user": "Tengo metal en Av. Principal 123"
+    },
+    {
+      "user": "Son 2 toneladas y somos una constructora"
+    }
+  ]
+}

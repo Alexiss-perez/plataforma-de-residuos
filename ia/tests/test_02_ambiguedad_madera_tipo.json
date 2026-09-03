@@ -1,0 +1,10 @@
+{
+  "nombre": "test_02_ambiguedad_madera_tipo",
+  "descripcion": "Usuario dice 'tengo madera' sin especificar si es tratada o virgen, ni cantidad. El agente debe repreguntar ambos datos.",
+  "resultado_esperado": "El agente pregunta sobre el tipo de madera (tratada/virgen) y la cantidad.",
+  "pasos": [
+    {
+      "user": "Tengo madera"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "nombre": "test_01_ambiguedad_volumen_faltante",
+  "descripcion": "Usuario ofrece escombros pero no indica volumen. El agente debe repreguntar, NO buscar receptores aún.",
+  "resultado_esperado": "El agente repregunta por el volumen y tipo de generador antes de invocar buscar_receptores.",
+  "pasos": [
+    {
+      "user": "Tenemos escombros de una demolición en Av. Principal 123"
+    }
+  ]
+}

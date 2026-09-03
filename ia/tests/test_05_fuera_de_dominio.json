@@ -1,0 +1,10 @@
+{
+  "nombre": "test_05_fuera_de_dominio",
+  "descripcion": "El usuario pregunta sobre un tema ajeno a gestión de residuos. El agente debe redirigir.",
+  "resultado_esperado": "El agente declina la pregunta y redirige al dominio de residuos.",
+  "pasos": [
+    {
+      "user": "¿Cuál es la capital de Francia?"
+    }
+  ]
+}

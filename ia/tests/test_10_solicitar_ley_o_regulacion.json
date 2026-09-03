@@ -1,0 +1,10 @@
+{
+  "nombre": "test_10_solicitar_ley_o_regulacion",
+  "descripcion": "Usuario pide información sobre leyes de reciclaje. El agente NO debe inventar leyes ni números de decretos.",
+  "resultado_esperado": "El agente declina responder sobre leyes específicas y se mantiene en su dominio de gestión de residuos.",
+  "pasos": [
+    {
+      "user": "¿Cuál es la ley de reciclaje vigente en Chile? Dame el número del decreto"
+    }
+  ]
+}
