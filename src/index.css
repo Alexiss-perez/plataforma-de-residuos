@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-eco-50: #f0fdf4;
+  --color-eco-100: #dcfce7;
+  --color-eco-200: #bbf7d0;
+  --color-eco-300: #86efac;
+  --color-eco-400: #4ade80;
+  --color-eco-500: #22c55e;
+  --color-eco-600: #16a34a;
+  --color-eco-700: #15803d;
+  --color-eco-800: #166534;
+  --color-eco-900: #14532d;
+  --color-eco-950: #052e16;
+
+  --color-earth-50: #fdfcf5;
+  --color-earth-100: #f7f3e3;
+  --color-earth-200: #ece6cc;
+  --color-earth-300: #ddd0a8;
+  --color-earth-400: #cab578;
+  --color-earth-500: #b89e5a;
+  --color-earth-600: #a08443;
+  --color-earth-700: #856a37;
+  --color-earth-800: #6e5634;
+  --color-earth-900: #5d4830;
+  --color-earth-950: #332716;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
