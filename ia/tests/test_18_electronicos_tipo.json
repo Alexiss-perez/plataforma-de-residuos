@@ -1,0 +1,10 @@
+{
+  "nombre": "test_18_electronicos_tipo",
+  "descripcion": "Usuario ofrece electronicos. El agente debe preguntar el tipo especifico (computadores, cables, baterias), unidades y estado.",
+  "resultado_esperado": "El agente pregunta por tipo de equipo electronico, unidades/kilos, si funcionan o no, y ubicacion.",
+  "pasos": [
+    {
+      "user": "Tengo electronicos en mi oficina en Av. Principal 123"
+    }
+  ]
+}

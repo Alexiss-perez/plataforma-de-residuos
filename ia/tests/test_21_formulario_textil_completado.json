@@ -1,0 +1,10 @@
+{
+  "nombre": "test_21_formulario_textil_completado",
+  "descripcion": "Simula un formulario de textil completado. El agente recibe datos estructurados y debe buscar receptores sin repreguntar.",
+  "resultado_esperado": "El agente recibe los datos del formulario, invoca buscar_receptores y presenta opciones sin repreguntar.",
+  "pasos": [
+    {
+      "user": "[FORMULARIO COMPLETADO] Material: textil, Volumen: 50 kg, Ubicación: Calle Tela 99, Tipo generador: persona_natural, Notas: subtipo: ropa, condicion: donable"
+    }
+  ]
+}

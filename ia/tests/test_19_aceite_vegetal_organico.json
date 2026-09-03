@@ -1,0 +1,10 @@
+{
+  "nombre": "test_19_aceite_vegetal_organico",
+  "descripcion": "Usuario ofrece aceite. El agente debe clasificar como organico (aceite vegetal) y preguntar cantidad, ubicacion y tipo de generador.",
+  "resultado_esperado": "El agente clasifica como organico, pregunta si es vegetal o mineral, cantidad en litros/kg y ubicacion.",
+  "pasos": [
+    {
+      "user": "Tengo aceite usado en Calle Verde 12, soy pyme"
+    }
+  ]
+}
