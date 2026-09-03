@@ -8,22 +8,24 @@
 
 ## ¿Qué está hecho?
 
-La capa de IA está **100% funcional** y lista para que el resto del equipo se conecte.
+La capa de IA está **100% funcional** y conectada a **Supabase** (PostgreSQL real).
 El agente funciona con GLM 5.2 vía la API de Kostra, tiene 5 herramientas (function calling),
-guardrail anti-alucinaciones, API REST y 11 tests que pasan.
+guardrail anti-alucinaciones, **WebSocket streaming** + API REST, y 11 tests que pasan.
 
 ```
 ia/
-├── ecomatch_agent.py       # Agente principal (chat + tool calling + guardrail)
-├── api.py                  # API REST FastAPI (endpoint /chat para el frontend)
-├── guardrail.py            # Capa anti-alucinaciones (valida respuestas antes de enviarlas)
+├── ecomatch_agent.py       # Agente principal (chat + streaming + tool calling + guardrail)
+├── api.py                  # API FastAPI — WebSocket (/ws) + REST (/chat)
+├── guardrail.py            # Capa anti-alucinaciones (carga receptores desde Supabase)
 ├── prompts/
 │   └── system_prompt.md    # System Prompt (identidad, reglas, flujo)
 ├── tools/
 │   ├── schemas.py          # Esquemas JSON de las 5 herramientas
-│   ├── implementations.py  # Implementaciones (mocks + OpenStreetMap real)
+│   ├── implementations.py  # Implementaciones conectadas a Supabase + OpenStreetMap real
 │   └── __init__.py
 ├── tests/                  # 11 casos de prueba
+├── types/
+│   └── supabase.ts         # Tipos TypeScript generados para el frontend
 ├── logs/                   # Logs de conversaciones (se generan automáticamente)
 ├── requirements.txt
 └── README.md
@@ -31,101 +33,100 @@ ia/
 
 ---
 
-## 1. Backend — Cómo reemplazar los mocks por la BD real
+## 0. Configuración — Variables de entorno
 
-Las herramientas en `ia/tools/implementations.py` son **mocks** que simulan la base de datos.
-Debes reemplazarlas con llamadas reales a tu API REST.
+```bash
+# LLM (GLM 5.2 via Kostra)
+export KOSTRA_API_KEY="sk-1pR89DLFsv8yAAMm3PnAFw"
 
-### Esquema de BD esperado
+# Supabase (BD real)
+export SUPABASE_URL="https://tgxseiaqebedzlgnutmm.supabase.co"
+export SUPABASE_KEY="sb_publishable_geOVgQQ-s_NwXd-PJMZKxg_8wrFoAt8"
+```
+
+---
+
+## 1. Backend — Base de datos en Supabase
+
+### Estado actual: LISTO
+
+Las tablas ya están creadas en Supabase con RLS policies y datos seed:
+
+| Tabla | RLS | Registros | Descripción |
+|---|---|---|---|
+| `usuarios` | ✅ | 0 | UUID PK, email único, tipo (constructora/pyme/persona_natural) |
+| `receptores` | ✅ | 5 | Receptores seed insertados |
+| `ofertas_residuo` | ✅ | 0 | FK a usuarios, índices en material/usuario/estado |
+| `retiros` | ✅ | 0 | FK a ofertas + receptores, índices en oferta/receptor/estado |
+
+### Esquema
 
 ```sql
--- Tabla: usuarios
+-- usuarios
 CREATE TABLE usuarios (
-    id          SERIAL PRIMARY KEY,
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre      VARCHAR(255) NOT NULL,
     email       VARCHAR(255) UNIQUE NOT NULL,
     tipo        VARCHAR(50) CHECK (tipo IN ('constructora', 'pyme', 'persona_natural')),
     direccion   TEXT,
     telefono    VARCHAR(50),
-    created_at  TIMESTAMP DEFAULT NOW()
+    created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabla: receptores
+-- receptores
 CREATE TABLE receptores (
     id                    SERIAL PRIMARY KEY,
     nombre                VARCHAR(255) NOT NULL,
     tipo                  VARCHAR(50) CHECK (tipo IN ('planta_reciclaje', 'ong', 'pyme')),
-    materiales_aceptados  TEXT[],  -- ej: ['escombros', 'metal', 'plastico']
+    materiales_aceptados  TEXT[] NOT NULL DEFAULT '{}',
     direccion             TEXT NOT NULL,
     telefono              VARCHAR(50),
     capacidad_disponible  VARCHAR(100),
-    lat                   FLOAT,
-    lon                   FLOAT
+    lat                   DOUBLE PRECISION,
+    lon                   DOUBLE PRECISION,
+    created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabla: ofertas_residuo
+-- ofertas_residuo
 CREATE TABLE ofertas_residuo (
-    id              SERIAL PRIMARY KEY,
-    usuario_id      INT REFERENCES usuarios(id),
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id      UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     material        VARCHAR(50) NOT NULL,
     volumen         VARCHAR(100) NOT NULL,
     ubicacion       TEXT NOT NULL,
     tipo_generador  VARCHAR(50) NOT NULL,
     notas           TEXT,
-    estado          VARCHAR(20) DEFAULT 'publicada',
-    created_at      TIMESTAMP DEFAULT NOW()
+    estado          VARCHAR(20) NOT NULL DEFAULT 'publicada',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabla: retiros
+-- retiros
 CREATE TABLE retiros (
-    id          SERIAL PRIMARY KEY,
-    oferta_id   INT REFERENCES ofertas_residuo(id),
-    receptor_id INT REFERENCES receptores(id),
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    oferta_id   UUID NOT NULL REFERENCES ofertas_residuo(id) ON DELETE CASCADE,
+    receptor_id INTEGER NOT NULL REFERENCES receptores(id) ON DELETE CASCADE,
     fecha       DATE NOT NULL,
     hora        TIME NOT NULL,
-    estado      VARCHAR(20) DEFAULT 'agendado',
-    created_at  TIMESTAMP DEFAULT NOW()
+    estado      VARCHAR(20) NOT NULL DEFAULT 'agendado',
+    created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-### Reemplazar los mocks
+### RLS Policies
 
-Cada función mock en `implementations.py` tiene un comentario indicando cómo reemplazarla.
-Ejemplo para `buscar_receptores`:
+- **usuarios:** cada usuario ve/edita solo su propio perfil
+- **receptores:** lectura pública (cualquiera puede ver), escritura solo constructoras
+- **ofertas_residuo:** cada usuario ve/edita solo sus propias ofertas
+- **retiros:** cada usuario ve/edita retiros de sus propias ofertas
 
-```python
-# ANTES (mock) — en ia/tools/implementations.py
-def buscar_receptores_impl(material: str, radio_km: float, ubicacion: str) -> dict:
-    receptores_encontrados = [...]  # lista hardcodeada
-    return {"total": len(...), "receptores": receptores_encontrados}
+### Función RPC
 
-# DESPUÉS (real) — el Backend reemplaza con llamada a la BD
-import requests
-
-API_URL = "http://localhost:3000/api"  # URL del backend
-
-def buscar_receptores_impl(material: str, radio_km: float, ubicacion: str) -> dict:
-    response = requests.get(f"{API_URL}/receptores", params={
-        "material": material,
-        "radio_km": radio_km,
-        "ubicacion": ubicacion,
-    })
-    return response.json()
+```sql
+-- Obtener retiros de un usuario con join a receptores y ofertas
+SELECT * FROM get_user_retiros('uuid-del-usuario');
 ```
 
-**Las 5 funciones que debes conectar:**
-
-| Función mock | Endpoint sugerido | Tabla BD |
-|---|---|---|
-| `buscar_receptores_impl` | `GET /api/receptores?material=&radio_km=&ubicacion=` | `receptores` |
-| `crear_oferta_residuo_impl` | `POST /api/ofertas` | `ofertas_residuo` |
-| `agendar_retiro_impl` | `POST /api/retiros` | `retiros` |
-| `obtener_historial_usuario_impl` | `GET /api/usuarios/{id}/historial` | `ofertas_residuo` + `retiros` |
-| `calcular_distancia_impl` | Ya está conectada (OpenStreetMap real) | — |
-
-### Datos mock actuales (para que sepas qué esperar)
-
-Los 5 receptores en la BD mock:
+### Receptores seed (ya insertados)
 
 | ID | Nombre | Materiales | Dirección |
 |---|---|---|---|
@@ -135,13 +136,26 @@ Los 5 receptores en la BD mock:
 | 4 | Cartoneros Unidos | carton, plastico | Pasaje Reciclaje 7 |
 | 5 | Reutiliza Textil | textil, madera | Calle Tela 99 |
 
-Materiales válidos (enum): `escombros, madera, plastico, carton, metal, vidrio, organico, electronicos, textil`
+Materiales válidos: `escombros, madera, plastico, carton, metal, vidrio, organico, electronicos, textil`
+
+### Lo que el Backend debe hacer
+
+Las herramientas en `ia/tools/implementations.py` **ya están conectadas a Supabase**.
+El único pendiente es que el `usuario_id` en `crear_oferta_residuo_impl` debe venir del JWT del frontend:
+
+```python
+# En implementations.py, línea ~60
+# TODO: el usuario_id debe venir del JWT del frontend.
+usuario_id = os.environ.get("ECOMATCH_USER_ID", None)
+```
+
+El Backend debe pasar el `usuario_id` desde el token de autenticación de Supabase Auth.
 
 ---
 
 ## 2. Frontend — Cómo conectarse al agente
 
-### Opción A: Via API REST (recomendado)
+### Opción A: WebSocket Streaming (RECOMENDADO)
 
 Levanta la API del agente:
 
@@ -150,99 +164,124 @@ cd ia/
 uvicorn api:app --port 8000
 ```
 
-Endpoints disponibles:
+Conexión WebSocket:
 
 ```javascript
-// Iniciar conversación o enviar mensaje
-POST http://localhost:8000/chat
-Content-Type: application/json
+const ws = new WebSocket("ws://localhost:8000/ws");
 
-// Request
-{
-  "session_id": "abc123",   // opcional, si no se envía se crea una nueva
-  "message": "Tengo 15 m3 de escombros en Av. Principal 123, soy constructora"
+let sessionId = null;
+
+ws.onopen = () => {
+  // Iniciar conexión
+  ws.send(JSON.stringify({ action: "connect" }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  switch (data.type) {
+    case "connected":
+      sessionId = data.session_id;
+      break;
+
+    case "welcome":
+      // Mostrar mensaje de bienvenida en el chat
+      displayMessage(data.content);
+      break;
+
+    case "token":
+      // CADA TOKEN EN TIEMPO REAL — appendar al mensaje en construcción
+      // Esto da el efecto de "escribiendo en tiempo real"
+      appendToken(data.content);
+      break;
+
+    case "tool_start":
+      // El agente está llamando una herramienta
+      // Ej: mostrar "Buscando receptores..." en la UI
+      showStatus(`Buscando ${data.name}...`);
+      break;
+
+    case "tool_end":
+      // La herramienta terminó
+      showStatus("");
+      break;
+
+    case "done":
+      // Respuesta completa recibida
+      finalizeMessage(data.content);
+      break;
+
+    case "guardrail_blocked":
+      // El guardrail bloqueó una posible alucinación
+      console.warn("Bloqueado:", data.razon);
+      break;
+
+    case "error":
+      console.error("Error:", data.message);
+      break;
+  }
+};
+
+// Enviar mensaje al agente
+function sendMessage(text) {
+  ws.send(JSON.stringify({ action: "message", content: text }));
 }
 
-// Response
-{
-  "session_id": "abc123",
-  "response": "¡Tu oferta fue registrada! Encontré 3 receptores...",
-  "tool_calls": [],
-  "timestamp": "2025-09-03T13:10:00"
+// Reiniciar conversación
+function resetChat() {
+  ws.send(JSON.stringify({ action: "reset" }));
 }
 ```
 
-```javascript
-// Reiniciar conversación
-POST http://localhost:8000/chat/reset
-{
-  "session_id": "abc123"
-}
+### Opción B: REST (sin streaming)
 
-// Obtener historial de la sesión
-GET http://localhost:8000/chat/abc123/history
+```javascript
+// Enviar mensaje
+POST http://localhost:8000/chat
+{ "session_id": sessionId, "message": "Tengo 15 m3 de escombros..." }
+
+// Response
+{ "session_id": "...", "response": "¡Tu oferta fue registrada!...", "timestamp": "..." }
+
+// Reiniciar
+POST http://localhost:8000/chat/reset
+{ "session_id": sessionId }
+
+// Historial
+GET http://localhost:8000/chat/{session_id}/history
 
 // Health check
 GET http://localhost:8000/health
 ```
 
-### Ejemplo de integración en React
+### Tipos TypeScript
 
-```javascript
-async function sendMessage(message, sessionId) {
-  const res = await fetch("http://localhost:8000/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, message }),
-  });
-  const data = await res.json();
-  return data;  // { session_id, response, timestamp }
-}
+Los tipos de Supabase están en `ia/types/supabase.ts`. Para usarlos en el frontend:
 
-// Uso:
-// 1. Primer mensaje (sin session_id) → crea sesión
-// 2. Guardar session_id en estado del componente
-// 3. Mensajes siguientes → enviar mismo session_id
+```typescript
+import { Database } from "./types/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient<Database>(
+  "https://tgxseiaqebedzlgnutmm.supabase.co",
+  "sb_publishable_geOVgQQ-s_NwXd-PJMZKxg_8wrFoAt8"
+);
+
+// Ejemplo: obtener receptores
+const { data } = await supabase.from("receptores").select("*");
 ```
-
-### Opción B: Chat embebido (sin API REST)
-
-Si prefieren no usar la API REST, pueden importar el agente directamente:
-
-```python
-from ecomatch_agent import enviar_mensaje, SYSTEM_PROMPT
-
-messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-messages.append({"role": "user", "content": "Tengo escombros..."})
-result = enviar_mensaje(messages)
-print(result["content"])  # respuesta del agente
-```
-
-### Mensaje de bienvenida
-
-El agente tiene un mensaje de bienvenida. Muéstralo al cargar la interfaz de chat:
-
-```
-👋 ¡Hola! Soy EcoMatch, tu agente de economía circular. ♻️
-
-Puedo ayudarte a:
-1. Publicar residuos que quieres que retiren de tu ubicación
-2. Buscar receptores cerca de ti (ONGs, plantas de reciclaje, pymes)
-3. Coordinar el retiro entre tú y el receptor
-
-Cuéntame: ¿qué residuo tienes y dónde estás ubicado?
-```
-
-Si el usuario envía "hola", "hi" o "inicio", la API devuelve este mensaje automáticamente.
 
 ### Manejo de estados en el frontend
 
 | Estado | Cuándo | UX sugerida |
 |---|---|---|
-| `loading` | Esperando respuesta del agente | Spinner o "EcoMatch está escribiendo..." |
-| `success` | Respuesta recibida | Mostrar `response` en el chat |
-| `error` | API caída | "El agente no está disponible. Intenta más tarde." |
-| `tool_calling` | El agente está usando herramientas | "Buscando receptores..." (opcional) |
+| `connected` | WebSocket conectado | Habilitar input |
+| `welcome` | Mensaje de bienvenida | Mostrar en chat |
+| `token` | Cada token recibido | Appendar al mensaje (efecto typing) |
+| `tool_start` | Agente usando herramienta | "Buscando receptores..." |
+| `tool_end` | Herramienta terminó | Quitar status |
+| `done` | Respuesta completa | Finalizar mensaje |
+| `error` | WebSocket caído | "El agente no está disponible" |
 
 ---
 
@@ -270,7 +309,7 @@ El agente ya devuelve los datos del retiro agendado:
 ```json
 {
   "status": "ok",
-  "retiro_id": 1,
+  "retiro_id": "uuid",
   "detalle": {
     "receptor": "Recicladora Norte",
     "material": "escombros",
@@ -294,7 +333,19 @@ Usa esos datos para llenar la plantilla de email.
 ```bash
 cd ia/
 export KOSTRA_API_KEY="sk-1pR89DLFsv8yAAMm3PnAFw"
+export SUPABASE_URL="https://tgxseiaqebedzlgnutmm.supabase.co"
+export SUPABASE_KEY="sb_publishable_geOVgQQ-s_NwXd-PJMZKxg_8wrFoAt8"
 python ecomatch_agent.py --test
+```
+
+### Levantar la API
+
+```bash
+cd ia/
+uvicorn api:app --port 8000
+# WebSocket: ws://localhost:8000/ws
+# REST:      http://localhost:8000/chat
+# Docs:      http://localhost:8000/docs
 ```
 
 ### Catálogo de tests
@@ -340,13 +391,6 @@ Los logs se guardan en `ia/logs/agent.log`. Cada interacción registra:
 - Respuesta del agente
 - Bloqueos del guardrail (si los hay)
 
-Formato:
-```
-2025-09-03 13:10:00 [INFO] [TOOL] buscar_receptores({'material': 'escombros', ...})
-2025-09-03 13:10:00 [INFO] [TOOL RESULT] {"total": 3, ...}
-2025-09-03 13:10:01 [WARNING] GUARDRAIL bloqueó: Receptor no reconocido
-```
-
 ### CI/CD sugerido
 
 ```yaml
@@ -364,6 +408,8 @@ jobs:
       - run: cd ia && python ecomatch_agent.py --test
         env:
           KOSTRA_API_KEY: ${{ secrets.KOSTRA_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 ```
 
 ---
@@ -376,30 +422,35 @@ jobs:
 |---|---|---|---|
 | Tareas exitosas | 30% | ✅ | Flujo completo: publicar → buscar → agendar |
 | Autonomía del agente | 25% | ✅ | Guía al usuario en 7 pasos sin intervención humana |
-| Uso de herramientas | 15% | ✅ | 5 herramientas con function calling real |
+| Uso de herramientas | 15% | ✅ | 5 herramientas con function calling real + Supabase |
 | Gestión de ambigüedad | 10% | ✅ | Repregunta datos faltantes, detecta contradicciones |
-| Cero alucinaciones | 10% | ✅ | Guardrail + prompt + temperature=0.3 + tools reales |
-| UX | 5% | ✅ | Mensaje de bienvenida, tono claro, formato lista |
+| Cero alucinaciones | 10% | ✅ | Guardrail + prompt + temperature=0.3 + Supabase real |
+| UX | 5% | ✅ | WebSocket streaming, mensaje de bienvenida, tono claro |
 | Creatividad | 5% | ✅ | Sugerencia de ampliar radio, OpenStreetMap real |
 
 ### Dependencias bloqueantes para producción
 
 | Dependencia | Equipo | Descripción |
 |---|---|---|
-| BD real | Backend | Reemplazar mocks en `implementations.py` por endpoints reales |
-| UI de chat | Frontend | Conectarse a `POST /chat` y manejar `session_id` |
+| Auth (JWT) | Backend | Pasar `usuario_id` desde Supabase Auth al agente |
+| UI de chat | Frontend | Conectarse a `ws://localhost:8000/ws` (WebSocket) |
 | Email de confirmación | Integraciones | Enviar email cuando `agendar_retiro` devuelva éxito |
-| API key en CI | DevOps | Agregar `KOSTRA_API_KEY` a secrets de GitHub |
+| API keys en CI | DevOps | Agregar `KOSTRA_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY` a secrets |
 
-### API Key
+### Credenciales
 
 ```
+# LLM
 KOSTRA_API_KEY = sk-1pR89DLFsv8yAAMm3PnAFw
 Base URL       = https://ai.kostra.cloud/v1
 Modelo         = glm-5.2
+
+# Supabase
+SUPABASE_URL   = https://tgxseiaqebedzlgnutmm.supabase.co
+SUPABASE_KEY   = sb_publishable_geOVgQQ-s_NwXd-PJMZKxg_8wrFoAt8
 ```
 
-> **No commitear la API key al repo.** Usar variable de entorno.
+> **No commitear las API keys al repo.** Usar variables de entorno.
 
 ---
 
@@ -419,8 +470,9 @@ El agente devuelve texto en markdown. El frontend debe renderizarlo con un parse
 │                                     │
 │  [Tú] Tengo 15 m3 de escombros...   │  ← Mensaje usuario (derecha)
 │                                     │
-│  [EcoMatch] ¡Tu oferta fue          │  ← Respuesta agente (izquierda)
-│  registrada! Encontré 3 receptores: │     (renderizar markdown)
+│  [EcoMatch] Buscando receptores...  │  ← Status tool_start
+│  [EcoMatch] ¡Tu oferta fue          │  ← Streaming token a token
+│  registrada! Encontré 3 receptores: │     (efecto typing en tiempo real)
 │  1. **Recicladora Norte** ...       │
 │                                     │
 ├─────────────────────────────────────┤
@@ -440,11 +492,11 @@ El agente devuelve texto en markdown. El frontend debe renderizarlo con un parse
 
 ## Resumen
 
-La capa de IA está lista. Lo que falta para producción es:
+La capa de IA está lista y conectada a Supabase. Lo que falta para producción es:
 
-1. **Backend** conecta los mocks a la BD real
-2. **Frontend** se conecta a `POST /chat`
-3. **Integraciones** configura el email de confirmación
-4. **DevOps** pone la API key en CI y levanta la API en el server
+1. **Backend** pasa el `usuario_id` desde Supabase Auth al agente
+2. **Frontend** se conecta a `ws://localhost:8000/ws` (WebSocket streaming)
+3. **Integraciones** configura el email de confirmación con SendGrid
+4. **DevOps** pone las API keys en CI y levanta la API en el server
 
 Cualquier duda, revisar `ia/README.md` o los logs en `ia/logs/agent.log`.

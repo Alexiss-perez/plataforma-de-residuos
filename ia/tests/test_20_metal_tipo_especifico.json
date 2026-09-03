@@ -1,0 +1,10 @@
+{
+  "nombre": "test_20_metal_tipo_especifico",
+  "descripcion": "Usuario ofrece metal sin especificar tipo. El agente debe preguntar si es hierro, aluminio, cobre, lata o mezclado, y si esta limpio.",
+  "resultado_esperado": "El agente pregunta por tipo de metal, kilos/toneladas, si esta limpio o contaminado, y ubicacion.",
+  "pasos": [
+    {
+      "user": "Tengo metal en Av. Norte 450, somos constructora"
+    }
+  ]
+}

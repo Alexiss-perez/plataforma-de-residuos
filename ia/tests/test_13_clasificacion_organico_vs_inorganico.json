@@ -1,0 +1,10 @@
+{
+  "nombre": "test_13_clasificacion_organico_vs_inorganico",
+  "descripcion": "Usuario dice 'residuos de mi casa' sin especificar tipo. El agente debe clasificar preguntando si son organicos o inorganicos.",
+  "resultado_esperado": "El agente pregunta si los residuos son organicos o inorganicos y pide el tipo especifico.",
+  "pasos": [
+    {
+      "user": "Tengo residuos de mi casa en Calle Principal 456"
+    }
+  ]
+}

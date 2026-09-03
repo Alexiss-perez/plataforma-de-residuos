@@ -126,6 +126,108 @@ def enviar_mensaje(messages: list) -> dict:
     return {"content": "[Límite de tool calls alcanzado]", "role": "assistant"}
 
 
+def enviar_mensaje_stream(messages: list):
+    """
+    Versión streaming de enviar_mensaje.
+    Genera (yield) eventos en tiempo real:
+        {"type": "token", "content": "..."}     — cada token de la respuesta
+        {"type": "tool_start", "name": "...", "args": {...}}  — inicio de tool call
+        {"type": "tool_end", "name": "...", "result": "..."}  — fin de tool call
+        {"type": "done", "content": "..."}      — respuesta completa
+        {"type": "guardrail_blocked", ...}       — guardrail bloqueó la respuesta
+    """
+    for _ in range(MAX_TOOL_ROUNDS):
+        stream = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            tools=TOOLS_SCHEMA,
+            tool_choice="auto",
+            temperature=0.3,
+            max_tokens=1024,
+            stream=True,
+        )
+
+        # Acumular el contenido y los tool calls del stream
+        content_parts = []
+        tool_calls_map = {}  # index -> {id, name, arguments_parts}
+
+        for chunk in stream:
+            delta = chunk.choices[0].delta
+
+            # Streaming de tokens de texto
+            if delta.content:
+                content_parts.append(delta.content)
+                yield {"type": "token", "content": delta.content}
+
+            # Acumular tool calls del stream
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_calls_map:
+                        tool_calls_map[idx] = {
+                            "id": tc.id or "",
+                            "name": "",
+                            "arguments_parts": [],
+                        }
+                    if tc.function:
+                        if tc.function.name:
+                            tool_calls_map[idx]["name"] = tc.function.name
+                        if tc.function.arguments:
+                            tool_calls_map[idx]["arguments_parts"].append(tc.function.arguments)
+
+        # Si no hay tool calls, devolver la respuesta final
+        if not tool_calls_map:
+            contenido = "".join(content_parts)
+
+            validacion = validar_respuesta(contenido, messages)
+            if not validacion["ok"]:
+                logger.warning(f"GUARDRAIL bloqueó: {validacion['razon']}")
+                yield {"type": "guardrail_blocked", "razon": validacion["razon"]}
+                yield {"type": "done", "content": validacion["mensaje_alternativo"]}
+                return
+
+            yield {"type": "done", "content": contenido}
+            return
+
+        # Ejecutar cada tool call
+        tool_calls_list = [tool_calls_map[i] for i in sorted(tool_calls_map.keys())]
+
+        messages.append({
+            "role": "assistant",
+            "content": "".join(content_parts) or None,
+            "tool_calls": [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": "".join(tc["arguments_parts"]),
+                    },
+                }
+                for tc in tool_calls_list
+            ],
+        })
+
+        for tc in tool_calls_list:
+            tool_name = tc["name"]
+            tool_args = json.loads("".join(tc["arguments_parts"]))
+
+            logger.info(f"[TOOL] {tool_name}({tool_args})")
+            yield {"type": "tool_start", "name": tool_name, "args": tool_args}
+
+            result = ejecutar_tool(tool_name, tool_args)
+            logger.info(f"[TOOL RESULT] {result[:200]}")
+            yield {"type": "tool_end", "name": tool_name, "result": result[:500]}
+
+            messages.append({
+                "role": "tool",
+                "content": result,
+                "tool_call_id": tc["id"],
+            })
+
+    yield {"type": "done", "content": "[Límite de tool calls alcanzado]"}
+
+
 def chat_interactivo():
     """Loop de chat interactivo por terminal."""
     print("=" * 60)
