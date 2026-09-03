@@ -1,44 +1,49 @@
-# EcoMatch ♻️ — Plataforma de Economía Circular
+# EcoMatch ♻️
 
-> Conecta generadores de residuos con receptores mediante un agente de IA (GLM 5.2).
+Plataforma web de economía circular que conecta generadores de residuos con receptores mediante un agente de IA potenciado por GLM 5.2.
 
-## Estructura del Monorepo
+## Stack
+
+- **Vite** + **React 19** — bundler y UI
+- **React Router v7** — routing
+- **Tailwind CSS v4** — estilos (paleta eco/tierra)
+- **Axios** — cliente HTTP con interceptor de auth
+
+## Estructura
 
 ```
-front-web/           # Frontend (React/Vite + Nginx)
-back-api/            # Backend API REST (Spring Boot)
-ai-orchestrator/     # Capa IA - Agente GLM 5.2 (Python/FastAPI)
-tests/               # Casos de prueba del agente (10 frases confusas)
-.github/workflows/   # CI (ci.yml) + CD (deploy.yml)
-task-definition.json # Manifiesto ECS Fargate
-docker-compose.yml   # Stack local con healthchecks
-Makefile             # Comandos DevOps
+src/
+├── components/      # Componentes reutilizables (Navbar, Logo, ProtectedRoute)
+├── pages/           # Rutas/pantallas (Login, Dashboard, Chat, NotFound)
+├── lib/             # Lógica transversal (api, auth, constants)
+├── assets/          # Recursos estáticos
+├── App.jsx          # Router + providers
+├── main.jsx         # Entry point
+└── index.css        # Tailwind + tema
 ```
 
-## Desarrollo Local
+## Scripts
 
 ```bash
-cp .env.example .env    # Rellenar valores reales
-make up                 # Levantar todo el stack
-make health             # Verificar que todo está healthy
-make logs               # Ver logs
+npm install      # instalar dependencias
+npm run dev      # servidor de desarrollo (http://localhost:5173)
+npm run build    # build de producción
+npm run preview  # previsualizar build
+npm run lint     # linter (oxlint)
 ```
 
-## Comandos DevOps
+## Pantallas (Sprint 1)
 
-```bash
-make help     # Ver todos los comandos disponibles
-make up       # Levantar stack
-make down     # Bajar stack
-make health   # Health checks
-make test     # Tests del agente
-```
+| Ruta        | Descripción                              |
+| ----------- | ---------------------------------------- |
+| `/login`    | Login de empresas                        |
+| `/dashboard`| Panel con stats y acciones rápidas       |
+| `/chat`     | Interfaz de chat con el agente IA        |
 
-## CI/CD
+## Próximos pasos
 
-- **`ci.yml`**: Se ejecuta en cada PR. Build + lint + escaneo de secretos.
-- **`deploy.yml`**: Se ejecuta en push a `main`. Build → push ECR → deploy ECS Fargate.
-
-## Roles del equipo (7 integrantes)
-
-Ver `CONTRIBUTING.md` para el flujo de trabajo y `tests/agent-test-cases.md` para los casos de prueba del agente.
+- [ ] Conectar Login con API real del backend (`POST /api/auth/login`)
+- [ ] Conectar Chat con endpoint del agente (`POST /api/agent/chat`)
+- [ ] Integrar Google Maps / OpenStreetMap para logística
+- [ ] Añadir formulario de registro de empresa
+- [ ] Tests E2E con Playwright
