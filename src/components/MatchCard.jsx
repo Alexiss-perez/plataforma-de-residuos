@@ -1,6 +1,7 @@
 import Badge from "./ui/Badge";
 import Button from "./ui/Button";
 import { MapPin, Building, Check, ArrowRight } from "./icons";
+import MapView from "../integrations/osm/MapView";
 
 export default function MatchCard({ match, onAccept }) {
   return (
@@ -24,6 +25,15 @@ export default function MatchCard({ match, onAccept }) {
         <MapPin className="h-3.5 w-3.5" />
         {match.address}
       </div>
+
+      {match.showMap && (
+        <div className="mb-3 overflow-hidden rounded-lg border border-eco-200">
+          <MapView
+            direccionOrigen={match.address}
+            receptores={match.receptores || []}
+          />
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={() => onAccept(match)} className="flex-1">
