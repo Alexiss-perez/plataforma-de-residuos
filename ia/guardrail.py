@@ -5,21 +5,38 @@ Capa de validación que intercepta la respuesta del LLM ANTES de enviarla al usu
 Si detecta una posible alucinación, la bloquea y devuelve un mensaje seguro.
 
 Criterios de validación:
-1. Nombres de receptores: solo se permiten los que están en la BD (RECEPTORES_DB)
+1. Nombres de receptores: solo se permiten los que están en Supabase
 2. Direcciones/telefonos inventados: se detectan patrones sospechosos
 3. Leyes/decretos: se bloquean menciones a números de ley específicos
 4. Longitud excesiva: respuesta > 3000 chars sospechosa de alucinación en cascada
 """
+import os
 import re
 
-# ── Lista blanca de receptores reales (de la BD mock) ──────────────────────
-RECEPTORES_VALIDOS = {
-    "recicladora norte",
-    "ong construye verde",
-    "planta procesadora sur",
-    "cartoneros unidos",
-    "reutiliza textil",
-}
+# ── Lista blanca de receptores: se carga desde Supabase al iniciar ──────────
+RECEPTORES_VALIDOS: set[str] = set()
+
+def _cargar_receptores():
+    """Carga los nombres de receptores válidos desde Supabase."""
+    global RECEPTORES_VALIDOS
+    try:
+        from supabase import create_client
+        url = os.environ.get("SUPABASE_URL", "https://tgxseiaqebedzlgnutmm.supabase.co")
+        key = os.environ.get("SUPABASE_KEY", "sb_publishable_geOVgQQ-s_NwXd-PJMZKxg_8wrFoAt8")
+        client = create_client(url, key)
+        response = client.table("receptores").select("nombre").execute()
+        RECEPTORES_VALIDOS = {r["nombre"].lower().strip() for r in response.data}
+    except Exception:
+        # Fallback si Supabase no está disponible
+        RECEPTORES_VALIDOS = {
+            "recicladora norte",
+            "ong construye verde",
+            "planta procesadora sur",
+            "cartoneros unidos",
+            "reutiliza textil",
+        }
+
+_cargar_receptores()
 
 # Palabras clave que indican que un nombre en bold es un receptor (no un label)
 PALABRAS_RECEPTOR = {"recicladora", "planta", "ong", "cartoneros", "reutiliza"}

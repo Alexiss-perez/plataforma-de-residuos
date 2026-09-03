@@ -1,99 +1,65 @@
 """
 Implementaciones de las herramientas del agente EcoMatch.
+Conectadas a Supabase (PostgreSQL) real.
 
-- buscar_receptores / crear_oferta / agendar_retiro: MOCK (Backend las reemplaza)
-- calcular_distancia: API real de OpenStreetMap Nominatim (gratis, sin API key)
-- obtener_historial: MOCK
+- buscar_receptores:       Query a tabla receptores en Supabase
+- crear_oferta_residuo:    Insert en tabla ofertas_residuo
+- agendar_retiro:          Insert en tabla retiros
+- calcular_distancia:      API real de OpenStreetMap Nominatim (gratis)
+- obtener_historial:       Query a ofertas_residuo + retiros del usuario
 
-Regla CRÍTICA: Ninguna función inventa datos aleatorios. Todas devuelven datos
-reales o predefinidos determinísticos, para que el agente NUNCA alucine.
+Requiere:
+    pip install supabase
+    export SUPABASE_URL="https://tgxseiaqebedzlgnutmm.supabase.co"
+    export SUPABASE_KEY="sb_publishable_geOVgQQ-s_NwXd-PJMZKxg_8wrFoAt8"
 """
+import os
 import json
 import urllib.request
 import urllib.parse
 from datetime import datetime
 
-# ── Base de datos mock de receptores ────────────────────────────────────────
-# Simula la tabla Receptor de la BD real. El Backend conectará esto a PostgreSQL.
-RECEPTORES_DB = [
-    {
-        "id": 1,
-        "nombre": "Recicladora Norte",
-        "tipo": "planta_reciclaje",
-        "materiales_aceptados": ["escombros", "metal", "plastico"],
-        "direccion": "Av. Norte 450",
-        "telefono": "+56 2 2345 6789",
-        "capacidad_disponible": "50 toneladas/semana",
-    },
-    {
-        "id": 2,
-        "nombre": "ONG Construye Verde",
-        "tipo": "ong",
-        "materiales_aceptados": ["madera", "escombros", "metal"],
-        "direccion": "Calle Verde 12",
-        "telefono": "+56 9 8765 4321",
-        "capacidad_disponible": "20 toneladas/semana",
-    },
-    {
-        "id": 3,
-        "nombre": "Planta Procesadora Sur",
-        "tipo": "planta_reciclaje",
-        "materiales_aceptados": ["escombros", "vidrio", "plastico"],
-        "direccion": "Av. Sur 890",
-        "telefono": "+56 2 2233 4455",
-        "capacidad_disponible": "100 toneladas/semana",
-    },
-    {
-        "id": 4,
-        "nombre": "Cartoneros Unidos",
-        "tipo": "pyme",
-        "materiales_aceptados": ["carton", "plastico"],
-        "direccion": "Pasaje Reciclaje 7",
-        "telefono": "+56 9 1122 3344",
-        "capacidad_disponible": "5 toneladas/semana",
-    },
-    {
-        "id": 5,
-        "nombre": "Reutiliza Textil",
-        "tipo": "ong",
-        "materiales_aceptados": ["textil", "madera"],
-        "direccion": "Calle Tela 99",
-        "telefono": "+56 9 5566 7788",
-        "capacidad_disponible": "2 toneladas/semana",
-    },
-]
+from supabase import create_client
 
-# ── Contador en memoria para IDs de ofertas ─────────────────────────────────
-_ofertas_db = []
-_retiro_db = []
-_next_oferta_id = 1
-_next_retiro_id = 1
+# ── Cliente Supabase ────────────────────────────────────────────────────────
+SUPABASE_URL = os.environ.get(
+    "SUPABASE_URL",
+    "https://tgxseiaqebedzlgnutmm.supabase.co",
+)
+SUPABASE_KEY = os.environ.get(
+    "SUPABASE_KEY",
+    "sb_publishable_geOVgQQ-s_NwXd-PJMZKxg_8wrFoAt8",
+)
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 # ── Implementaciones ────────────────────────────────────────────────────────
 def buscar_receptores_impl(material: str, radio_km: float, ubicacion: str) -> dict:
     """
-    Busca receptores que acepten el material indicado.
-    Filtra por material aceptado. El radio_km se simula (en producción se usa PostGIS).
+    Busca receptores en Supabase que acepten el material indicado.
+    Filtra por material dentro del array materiales_aceptados.
     """
-    receptores_encontrados = [
-        {
+    response = supabase.table("receptores").select(
+        "id, nombre, tipo, direccion, capacidad_disponible, materiales_aceptados"
+    ).contains("materiales_aceptados", [material]).execute()
+
+    receptores = []
+    for i, r in enumerate(response.data):
+        receptores.append({
             "id": r["id"],
             "nombre": r["nombre"],
             "tipo": r["tipo"],
             "direccion": r["direccion"],
-            "distancia_km": round(2.5 + i * 3.3, 1),  # distancia simulada determinística
+            "distancia_km": round(2.5 + i * 3.3, 1),  # TODO: reemplazar con PostGIS o calcular_distancia
             "capacidad_disponible": r["capacidad_disponible"],
-        }
-        for i, r in enumerate(RECEPTORES_DB)
-        if material.lower() in r["materiales_aceptados"]
-    ]
+        })
 
     return {
-        "total": len(receptores_encontrados),
+        "total": len(receptores),
         "material_buscado": material,
         "radio_km": radio_km,
-        "receptores": receptores_encontrados,
+        "receptores": receptores,
     }
 
 
@@ -104,57 +70,72 @@ def crear_oferta_residuo_impl(
     tipo_generador: str,
     notas: str = "",
 ) -> dict:
-    """Registra la oferta en la BD mock y devuelve el ID asignado."""
-    global _next_oferta_id
+    """Registra la oferta en Supabase (tabla ofertas_residuo)."""
+    # TODO: el usuario_id debe venir del JWT del frontend.
+    # Por ahora usamos un usuario de prueba si existe, o None.
+    usuario_id = os.environ.get("ECOMATCH_USER_ID", None)
 
-    oferta = {
-        "id": _next_oferta_id,
+    oferta_data = {
         "material": material,
         "volumen": volumen,
         "ubicacion": ubicacion,
         "tipo_generador": tipo_generador,
         "notas": notas,
         "estado": "publicada",
-        "fecha_creacion": datetime.now().isoformat(),
     }
-    _ofertas_db.append(oferta)
-    _next_oferta_id += 1
+    if usuario_id:
+        oferta_data["usuario_id"] = usuario_id
 
-    return {"status": "ok", "oferta_id": oferta["id"], "mensaje": "Oferta registrada correctamente."}
+    response = supabase.table("ofertas_residuo").insert(oferta_data).execute()
+
+    if response.data:
+        return {
+            "status": "ok",
+            "oferta_id": response.data[0]["id"],
+            "mensaje": "Oferta registrada correctamente en Supabase.",
+        }
+    return {"error": "No se pudo registrar la oferta."}
 
 
 def agendar_retiro_impl(
     receptor_id: int,
-    oferta_id: int,
+    oferta_id: str,
     fecha: str,
     hora: str,
 ) -> dict:
-    """Agenda el retiro entre generador y receptor."""
-    global _next_retiro_id
-
-    receptor = next((r for r in RECEPTORES_DB if r["id"] == receptor_id), None)
-    if not receptor:
-        return {"error": f"No existe receptor con id={receptor_id}"}
-
-    oferta = next((o for o in _ofertas_db if o["id"] == oferta_id), None)
-    if not oferta:
-        return {"error": f"No existe oferta con id={oferta_id}"}
-
-    retiro = {
-        "id": _next_retiro_id,
-        "receptor": receptor["nombre"],
-        "material": oferta["material"],
-        "volumen": oferta["volumen"],
-        "origen": oferta["ubicacion"],
-        "destino": receptor["direccion"],
+    """Agenda el retiro en Supabase (tabla retiros)."""
+    retiro_data = {
+        "oferta_id": oferta_id,
+        "receptor_id": receptor_id,
         "fecha": fecha,
         "hora": hora,
         "estado": "agendado",
     }
-    _retiro_db.append(retiro)
-    _next_retiro_id += 1
 
-    return {"status": "ok", "retiro_id": retiro["id"], "detalle": retiro}
+    response = supabase.table("retiros").insert(retiro_data).execute()
+
+    if not response.data:
+        return {"error": "No se pudo agendar el retiro."}
+
+    retiro = response.data[0]
+
+    # Obtener detalles de la oferta y receptor para el resumen
+    oferta_resp = supabase.table("ofertas_residuo").select("*").eq("id", oferta_id).execute()
+    receptor_resp = supabase.table("receptores").select("nombre, direccion").eq("id", receptor_id).execute()
+
+    detalle = {
+        "id": retiro["id"],
+        "receptor": receptor_resp.data[0]["nombre"] if receptor_resp.data else "Desconocido",
+        "material": oferta_resp.data[0]["material"] if oferta_resp.data else "Desconocido",
+        "volumen": oferta_resp.data[0]["volumen"] if oferta_resp.data else "Desconocido",
+        "origen": oferta_resp.data[0]["ubicacion"] if oferta_resp.data else "Desconocido",
+        "destino": receptor_resp.data[0]["direccion"] if receptor_resp.data else "Desconocido",
+        "fecha": fecha,
+        "hora": hora,
+        "estado": "agendado",
+    }
+
+    return {"status": "ok", "retiro_id": retiro["id"], "detalle": detalle}
 
 
 def calcular_distancia_impl(origen: str, destino: str) -> dict:
@@ -186,11 +167,10 @@ def calcular_distancia_impl(origen: str, destino: str) -> dict:
                 "error": "No se pudo geocodificar una de las direcciones. Verifica que sean direcciones reales.",
             }
 
-        # Fórmula de Haversine para distancia entre dos puntos GPS
         import math
         lat1, lon1 = coords_origen
         lat2, lon2 = coords_destino
-        R = 6371  # radio de la Tierra en km
+        R = 6371
         dlat = math.radians(lat2 - lat1)
         dlon = math.radians(lon2 - lon1)
         a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
@@ -213,12 +193,18 @@ def calcular_distancia_impl(origen: str, destino: str) -> dict:
         }
 
 
-def obtener_historial_usuario_impl(user_id: int) -> dict:
-    """Devuelve el historial de ofertas del usuario."""
+def obtener_historial_usuario_impl(user_id: str) -> dict:
+    """Devuelve el historial de ofertas y retiros del usuario desde Supabase."""
+    ofertas_resp = supabase.table("ofertas_residuo").select("*").eq("usuario_id", user_id).execute()
+
+    retiros_resp = supabase.rpc(
+        "get_user_retiros", {"p_user_id": user_id}
+    ).execute()
+
     return {
         "user_id": user_id,
-        "total_ofertas": len(_ofertas_db),
-        "ofertas": _ofertas_db,
-        "total_retiros": len(_retiro_db),
-        "retiros": _retiro_db,
+        "total_ofertas": len(ofertas_resp.data),
+        "ofertas": ofertas_resp.data,
+        "total_retiros": len(retiros_resp.data) if retiros_resp.data else 0,
+        "retiros": retiros_resp.data if retiros_resp.data else [],
     }

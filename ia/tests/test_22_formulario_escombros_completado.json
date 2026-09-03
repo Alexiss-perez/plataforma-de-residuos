@@ -1,0 +1,10 @@
+{
+  "nombre": "test_22_formulario_escombros_completado",
+  "descripcion": "Simula un formulario de escombros completado con todos los campos. El agente debe proceder directamente a buscar receptores.",
+  "resultado_esperado": "El agente invoca crear_oferta y buscar_receptores con los datos del formulario y presenta receptores.",
+  "pasos": [
+    {
+      "user": "[FORMULARIO COMPLETADO] Material: escombros, Volumen: 15 m3, Ubicación: Av. Principal 123, Tipo generador: constructora, Notas: tipo_escombro: limpio, carga: camion_grua"
+    }
+  ]
+}

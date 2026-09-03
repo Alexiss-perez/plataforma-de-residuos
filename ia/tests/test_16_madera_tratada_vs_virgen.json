@@ -1,0 +1,10 @@
+{
+  "nombre": "test_16_madera_tratada_vs_virgen",
+  "descripcion": "Usuario ofrece madera. El agente debe preguntar si es tratada (inorganico) o virgen (organico), ya que esto determina el receptor.",
+  "resultado_esperado": "El agente pregunta si la madera es tratada o virgen, ademas de cantidad y ubicacion.",
+  "pasos": [
+    {
+      "user": "Hola tengo madera ubicada en la plaza de san bernardo"
+    }
+  ]
+}

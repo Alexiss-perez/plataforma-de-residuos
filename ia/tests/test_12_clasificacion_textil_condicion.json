@@ -1,0 +1,10 @@
+{
+  "nombre": "test_12_clasificacion_textil_condicion",
+  "descripcion": "Usuario ofrece ropa sin especificar condicion (donable vs destruir). El agente debe preguntar si esta en condiciones de donacion o necesita otro proceso.",
+  "resultado_esperado": "El agente pregunta por kilos, condicion (donable/destruir), ubicacion y tipo de generador.",
+  "pasos": [
+    {
+      "user": "Tengo ropa que ya no uso"
+    }
+  ]
+}

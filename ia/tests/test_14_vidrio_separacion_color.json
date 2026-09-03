@@ -1,0 +1,10 @@
+{
+  "nombre": "test_14_vidrio_separacion_color",
+  "descripcion": "Usuario ofrece vidrio. El agente debe preguntar si esta separado por color o mezclado, ademas de kilos y ubicacion.",
+  "resultado_esperado": "El agente pregunta por tipo de vidrio (entero/roto), separacion por color, kilos y ubicacion.",
+  "pasos": [
+    {
+      "user": "Tengo vidrio en Av. Principal 123, soy pyme"
+    }
+  ]
+}

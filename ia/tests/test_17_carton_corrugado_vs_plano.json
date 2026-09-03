@@ -1,0 +1,10 @@
+{
+  "nombre": "test_17_carton_corrugado_vs_plano",
+  "descripcion": "Usuario ofrece carton. El agente debe preguntar si es corrugado o plano, si esta limpio, y la cantidad.",
+  "resultado_esperado": "El agente pregunta por tipo de carton (corrugado/plano), condicion (limpio/contaminado), kilos y ubicacion.",
+  "pasos": [
+    {
+      "user": "Tengo carton en Av. Sur 890, soy persona natural"
+    }
+  ]
+}

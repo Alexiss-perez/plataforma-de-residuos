@@ -1,0 +1,10 @@
+{
+  "nombre": "test_15_plastico_tipo_pet_vs_mezclado",
+  "descripcion": "Usuario ofrece plastico sin especificar tipo. El agente debe preguntar si es PET, HDPE, bolsas o mezclado.",
+  "resultado_esperado": "El agente pregunta por el tipo de plastico (PET, HDPE, bolsas, film, mezclado), kilos y si esta limpio.",
+  "pasos": [
+    {
+      "user": "Tengo plastico en mi local de Calle Falsa 123"
+    }
+  ]
+}
