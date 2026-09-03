@@ -1,36 +1,24 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-env/
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Env
-.env
-*.db
-test_*.db
-revinculo.db
+node_modules
+dist
+dist-ssr
+*.local
 
-# Uploads
-uploads/
-
-# Pytest
-.pytest_cache/
-.coverage
-htmlcov/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# OS
-Thumbs.db
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
-
-# Claude skills (external repo, not part of this project)
-claude-skills/
-
-# OpenCode skills cache
-.opencode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
