@@ -1,0 +1,22 @@
+.leaflet-container {
+  font-family: inherit;
+  z-index: 0;
+}
+
+.marker-green {
+  filter: hue-rotate(120deg) saturate(1.5);
+}
+
+.marker-blue {
+  filter: hue-rotate(220deg);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.8) !important;
+}
